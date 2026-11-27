@@ -61,13 +61,7 @@ class Headset {
 }
 
 class InventoryStore extends ChangeNotifier {
-  final List<Headset> items = [
-    Headset(id:'1',tag:'HS-0001',brand:'Logitech',model:'H570e',serial:'LGT-90211',status:'Available',assignedTo:'',department:'',notes:'USB headset',createdAt:DateTime.now()),
-    Headset(id:'2',tag:'HS-0002',brand:'Jabra',model:'Evolve 20',serial:'JBR-11208',status:'Issued',assignedTo:'Maria Santos',department:'IT Support',notes:'',createdAt:DateTime.now()),
-    Headset(id:'3',tag:'HS-0003',brand:'Plantronics',model:'Blackwire 3320',serial:'PLT-33021',status:'Defective',assignedTo:'',department:'',notes:'Mic not working',createdAt:DateTime.now()),
-    Headset(id:'4',tag:'HS-0004',brand:'Logitech',model:'H390',serial:'LGT-77401',status:'Available',assignedTo:'',department:'',notes:'',createdAt:DateTime.now()),
-    Headset(id:'5',tag:'HS-0005',brand:'Jabra',model:'Evolve 65',serial:'JBR-65003',status:'Issued',assignedTo:'Juan Dela Cruz',department:'Sales',notes:'Wireless',createdAt:DateTime.now()),
-  ];
+  final List<Headset> items = [];
   bool get online => cloudReady;
   Future<void> load() async {
     if (!online) return;
