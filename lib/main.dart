@@ -259,10 +259,10 @@ class DashboardPage extends StatelessWidget {
     _StatCard(title:'Defective',value:'$defective',icon:Icons.warning_rounded,color:const Color(0xFFE3485B)),
    ]),
    const SizedBox(height:20),LayoutBuilder(builder:(context,c)=>Wrap(spacing:16,runSpacing:16,children:[
-    SizedBox(width:c.maxWidth>950?c.maxWidth*.57:c.maxWidth,child:_Panel(title:'Monthly Headset Count',child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      const Text('Counts follow the Date entered for each headset.',style:TextStyle(fontSize:11,color:Colors.blueGrey)),
+    SizedBox(width:c.maxWidth>950?c.maxWidth*.57:c.maxWidth,child:_Panel(title:'Monthly Headcount',child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      const Text('Headsets counted by the Date entered in Inventory.',style:TextStyle(fontSize:11,color:Colors.blueGrey)),
       const SizedBox(height:8),
-      const Row(children:[_Legend(color:blue,label:'Total'),_Legend(color:Color(0xFF10A779),label:'Available'),_Legend(color:Color(0xFFF28B24),label:'Issued'),_Legend(color:Color(0xFFE3485B),label:'Defective')]),
+      const Row(children:[Container(width:9,height:9,decoration:BoxDecoration(color:blue,shape:BoxShape.circle)),SizedBox(width:6),Text('Headsets',style:TextStyle(fontSize:10))]),
       const SizedBox(height:12),_MonthlyInventoryChart(months:months,monthlyAssets:monthlyAssets,maxCount:maxMonthlyCount)
     ]))),
     SizedBox(width:c.maxWidth>950?c.maxWidth*.39:c.maxWidth,child:_Panel(title:'Headset Status',child:Column(children:[
@@ -297,19 +297,15 @@ class _MonthlyInventoryChart extends StatelessWidget {
   const _MonthlyInventoryChart({required this.months,required this.monthlyAssets,required this.maxCount});
 
   @override Widget build(BuildContext context){
-    const colors=[blue,Color(0xFF10A779),Color(0xFFF28B24),Color(0xFFE3485B)];
     return SizedBox(height:160,child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(months.length,(i){
-      final assets=monthlyAssets[i];
-      final counts=[assets.length,assets.where((x)=>x.status=='Available').length,assets.where((x)=>x.status=='Issued').length,assets.where((x)=>x.status=='Defective').length];
+      final count=monthlyAssets[i].length;
+      final height=maxCount==0||count==0?3.0:(count/maxCount*92).clamp(3.0,92.0).toDouble();
       return Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:3),child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
-        Expanded(child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(counts.length,(j){
-          final height=maxCount==0||counts[j]==0?3.0:(counts[j]/maxCount*92).clamp(3.0,92.0).toDouble();
-          return Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:1),child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
-            Text('${counts[j]}',style:const TextStyle(fontSize:8,color:Colors.blueGrey)),
-            const SizedBox(height:2),
-            Container(height:height,decoration:BoxDecoration(color:colors[j].withOpacity(.9),borderRadius:BorderRadius.circular(3))),
-          ])));
-        }))),
+        Expanded(child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
+          Text('$count',style:const TextStyle(fontSize:9,color:Colors.blueGrey)),
+          const SizedBox(height:3),
+          Container(width:24,height:height,decoration:BoxDecoration(color:blue.withOpacity(.9),borderRadius:BorderRadius.circular(4))),
+        ])),
         const SizedBox(height:7),
         Text(DateFormat('MMM').format(months[i]),style:const TextStyle(fontSize:11,color:Colors.blueGrey)),
       ])));
