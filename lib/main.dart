@@ -562,13 +562,13 @@ class _InventoryPageState extends State<InventoryPage>{
     return tag;
   }
 
-  Widget _addFormField(String label,TextEditingController controller,String hint)=>Padding(
+  Widget _addFormField(String label,TextEditingController controller)=>Padding(
     padding:const EdgeInsets.only(bottom:13),
     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(label,style:const TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
       const SizedBox(height:6),
       TextField(controller:controller,decoration:InputDecoration(
-        hintText:hint,isDense:true,filled:true,fillColor:Colors.white,
+        isDense:true,filled:true,fillColor:Colors.white,
         contentPadding:const EdgeInsets.symmetric(horizontal:13,vertical:13),
         border:OutlineInputBorder(borderRadius:BorderRadius.circular(11),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
         enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(11),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
@@ -596,10 +596,10 @@ class _InventoryPageState extends State<InventoryPage>{
           IconButton(tooltip:'Close',onPressed:()=>Navigator.pop(dialogContext,false),icon:const Icon(Icons.close,color:Colors.blueGrey)),
         ]),
         const SizedBox(height:8),
-        _addFormField('Asset Tag',tag,'e.g. HS-0001'),
-        _addFormField('Brand',brand,'e.g. Logitech, Jabra'),
-        _addFormField('Model',model,'e.g. H570e, Evolve 20'),
-        _addFormField('Serial Number',serial,'e.g. LGT-90211'),
+        _addFormField('Asset Tag',tag),
+        _addFormField('Brand',brand),
+        _addFormField('Model',model),
+        _addFormField('Serial Number',serial),
         Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           const Text('Status',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
           const SizedBox(height:6),
@@ -623,17 +623,17 @@ class _InventoryPageState extends State<InventoryPage>{
           ),
         ]),
         const SizedBox(height:13),
-        _addFormField('Assigned To',assignedTo,'Employee Name'),
+        _addFormField('Assigned To',assignedTo),
         Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           const Text('Department',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
           const SizedBox(height:6),
           DropdownButtonFormField<String>(
-            value:department,hint:const Text('Select Department'),decoration:_cellDecoration(),isExpanded:true,
+            value:department,decoration:_cellDecoration(),isExpanded:true,
             items:['ONLINE','BOOTH','SGM','UNO DIGITAL BANK'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
             onChanged:(value)=>setDialogState(()=>department=value),
           ),
         ]),
-        _addFormField('Remarks / Notes',notes,'e.g. USB Headset, Wireless'),
+        _addFormField('Remarks / Notes',notes),
         Row(mainAxisAlignment:MainAxisAlignment.end,children:[
           TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Cancel')),
           const SizedBox(width:8),
