@@ -548,7 +548,7 @@ class _InventoryPageState extends State<InventoryPage>{
           const SizedBox(height:6),
           DropdownButtonFormField<String>(
             value:department,decoration:_cellDecoration(),isExpanded:true,
-            items:['ONLINE','BOOTH SGM','UNO DIGITAL BANK'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
+            items:['ONLINE','BOOTH','SGM','UNO DIGITAL BANK'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
             onChanged:(value){if(value!=null)setDialogState(()=>department=value);},
           ),
         ]),
