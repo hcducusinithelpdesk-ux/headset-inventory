@@ -505,6 +505,7 @@ class _InventoryPageState extends State<InventoryPage>{
     final assignedTo=TextEditingController();
     final department=TextEditingController();
     final notes=TextEditingController();
+    final date=TextEditingController(text:DateFormat('MM/dd/yyyy').format(DateTime.now()));
     var status='Available';
     var createdAt=DateTime.now();
     final shouldSave=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialogState)=>Dialog(
@@ -531,13 +532,14 @@ class _InventoryPageState extends State<InventoryPage>{
         Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           const Text('Date',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
           const SizedBox(height:6),
-          InkWell(onTap:()async{
+          TextField(
+            controller:date,
+            keyboardType:TextInputType.datetime,
+            decoration:_cellDecoration(suffixIcon:IconButton(onPressed:()async{
             final picked=await showDatePicker(context:dialogContext,initialDate:createdAt,firstDate:DateTime(2000),lastDate:DateTime(2100));
-            if(picked!=null)setDialogState(()=>createdAt=picked);
-          },child:InputDecorator(
-            decoration:_cellDecoration(suffixIcon:const Icon(Icons.calendar_today,size:18)),
-            child:Text(DateFormat('MM/dd/yyyy').format(createdAt)),
-          )),
+            if(picked!=null)setDialogState(()=>date.text=DateFormat('MM/dd/yyyy').format(createdAt=picked));
+          },icon:const Icon(Icons.calendar_today,size:18))),
+          ),
         ]),
         const SizedBox(height:13),
         _addFormField('Assigned To',assignedTo,'Employee Name'),
@@ -551,17 +553,24 @@ class _InventoryPageState extends State<InventoryPage>{
       ]))),
     )));
     if(shouldSave!=true||!mounted){
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
       return;
     }
+    final enteredDate=DateFormat('MM/dd/yyyy').tryParseStrict(date.text.trim());
+    if(enteredDate==null){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter a valid date in MM/DD/YYYY format.')));
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
+      return;
+    }
+    createdAt=enteredDate;
     if(tag.text.trim().isEmpty||brand.text.trim().isEmpty||model.text.trim().isEmpty){
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset Tag, Brand, and Model are required.')));
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
       return;
     }
     if(widget.store.items.any((headset)=>headset.tag.toLowerCase()==tag.text.trim().toLowerCase())){
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset tag already exists.')));
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
       return;
     }
     final headset=Headset(
@@ -574,7 +583,7 @@ class _InventoryPageState extends State<InventoryPage>{
     }catch(e){
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Add failed: $e')));
     }finally{
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
     }
   }
 
