@@ -251,7 +251,6 @@ class DashboardPage extends StatelessWidget {
   final months=List.generate(6,(i)=>DateTime(now.year,now.month-5+i));
   final monthlyAssets=months.map((month)=>store.items.where((item)=>item.createdAt.year==month.year&&item.createdAt.month==month.month).toList()).toList();
   final maxMonthlyCount=monthlyAssets.map((assets)=>assets.length).fold<int>(0,(max,count)=>count>max?count:max);
-  const chartColors=[blue,Color(0xFF10A779),Color(0xFFF28B24),Color(0xFFE3485B)];
   return SingleChildScrollView(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
    Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Dashboard',style:TextStyle(fontSize:30,fontWeight:FontWeight.bold,color:navy)),SizedBox(height:4),Text('Monitor and manage your headset assets',style:TextStyle(color:Colors.blueGrey))])),const CompanyLogo(height:38)]),
    const SizedBox(height:22),Wrap(spacing:14,runSpacing:14,children:[
@@ -263,18 +262,7 @@ class DashboardPage extends StatelessWidget {
    const SizedBox(height:20),LayoutBuilder(builder:(context,c)=>Wrap(spacing:16,runSpacing:16,children:[
     SizedBox(width:c.maxWidth>950?c.maxWidth*.57:c.maxWidth,child:_Panel(title:'Inventory Overview',child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       const Row(children:[_Legend(color:blue,label:'Total'),_Legend(color:Color(0xFF10A779),label:'Available'),_Legend(color:Color(0xFFF28B24),label:'Issued'),_Legend(color:Color(0xFFE3485B),label:'Defective')]),
-      const SizedBox(height:12),SizedBox(height:160,child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(6,(i){
-        final assets=monthlyAssets[i];
-        final counts=[assets.length,assets.where((x)=>x.status=='Available').length,assets.where((x)=>x.status=='Issued').length,assets.where((x)=>x.status=='Defective').length];
-        return Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:3),child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
-          Expanded(child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(4,(j)=>Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:1),child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
-            Text('${counts[j]}',style:const TextStyle(fontSize:8,color:Colors.blueGrey)),
-            const SizedBox(height:2),
-            Container(height:maxMonthlyCount==0?3.0:(counts[j]==0?3.0:(counts[j]/maxMonthlyCount*92).clamp(3.0,92.0).toDouble()),decoration:BoxDecoration(color:chartColors[j].withOpacity(.9),borderRadius:BorderRadius.circular(3))),
-          ]))))),
-          const SizedBox(height:7),Text(DateFormat('MMM').format(months[i]),style:const TextStyle(fontSize:11,color:Colors.blueGrey))
-        ])));
-      })))
+      const SizedBox(height:12),_MonthlyInventoryChart(months:months,monthlyAssets:monthlyAssets,maxCount:maxMonthlyCount)
     ]))),
     SizedBox(width:c.maxWidth>950?c.maxWidth*.39:c.maxWidth,child:_Panel(title:'Headset Status',child:Column(children:[
       _StatusBar(label:'Available',count:available,total:total,color:const Color(0xFF10A779)),
@@ -286,6 +274,33 @@ class DashboardPage extends StatelessWidget {
 
   ]));
  });
+}
+
+class _MonthlyInventoryChart extends StatelessWidget {
+  final List<DateTime> months;
+  final List<List<Headset>> monthlyAssets;
+  final int maxCount;
+  const _MonthlyInventoryChart({required this.months,required this.monthlyAssets,required this.maxCount});
+
+  @override Widget build(BuildContext context){
+    const colors=[blue,Color(0xFF10A779),Color(0xFFF28B24),Color(0xFFE3485B)];
+    return SizedBox(height:160,child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(months.length,(i){
+      final assets=monthlyAssets[i];
+      final counts=[assets.length,assets.where((x)=>x.status=='Available').length,assets.where((x)=>x.status=='Issued').length,assets.where((x)=>x.status=='Defective').length];
+      return Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:3),child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
+        Expanded(child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(counts.length,(j){
+          final height=maxCount==0||counts[j]==0?3.0:(counts[j]/maxCount*92).clamp(3.0,92.0).toDouble();
+          return Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:1),child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
+            Text('${counts[j]}',style:const TextStyle(fontSize:8,color:Colors.blueGrey)),
+            const SizedBox(height:2),
+            Container(height:height,decoration:BoxDecoration(color:colors[j].withOpacity(.9),borderRadius:BorderRadius.circular(3))),
+          ])));
+        }))),
+        const SizedBox(height:7),
+        Text(DateFormat('MMM').format(months[i]),style:const TextStyle(fontSize:11,color:Colors.blueGrey)),
+      ])));
+    })));
+  }
 }
 
 class _StatCard extends StatelessWidget {
