@@ -190,7 +190,7 @@ class _InventoryShellState extends State<InventoryShell> {
     return Scaffold(body:Row(children:[
       if(wide) _Sidebar(page:page,onSelect:(v)=>setState(()=>page=v),isAdmin:widget.isAdmin),
       Expanded(child:Column(children:[
-        AnimatedBuilder(animation:store,builder:(context,_)=>_Topbar(online:store.online,username:widget.username,onLogout:_logout,onMenu:wide?null:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Use the bottom navigation to switch pages.'))))),
+        _Topbar(username:widget.username,onLogout:_logout,onMenu:wide?null:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Use the bottom navigation to switch pages.')))),
         Expanded(child:pages[page]),
         if(!wide) NavigationBar(selectedIndex:page,onDestinationSelected:(v)=>setState(()=>page=v),
           destinations:[
@@ -230,14 +230,12 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _Topbar extends StatelessWidget {
- final bool online; final String username; final VoidCallback onLogout; final VoidCallback? onMenu;
- const _Topbar({required this.online,required this.username,required this.onLogout,this.onMenu});
+ final String username; final VoidCallback onLogout; final VoidCallback? onMenu;
+ const _Topbar({required this.username,required this.onLogout,this.onMenu});
  @override Widget build(BuildContext context)=>Container(height:68,color:Colors.white,padding:const EdgeInsets.symmetric(horizontal:24),child:Row(children:[
   if(onMenu!=null) IconButton(onPressed:onMenu,icon:const Icon(Icons.menu)),
   const CompanyLogo(height:30,showWordmark:false),const SizedBox(width:8),const Text('Headset Inventory',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold,color:navy)),
-  const Spacer(),Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:8),decoration:BoxDecoration(color:online?const Color(0xFFE4F8F1):const Color(0xFFFFF4DF),borderRadius:BorderRadius.circular(20)),
-    child:Row(children:[Icon(online?Icons.cloud_done:Icons.cloud_off,color:online?Colors.green:Colors.orange,size:17),const SizedBox(width:6),Text(online?'Cloud Connected':'Demo Mode',style:TextStyle(color:online?Colors.green.shade800:Colors.orange.shade900,fontSize:12,fontWeight:FontWeight.bold))])),
-  const SizedBox(width:16),const CircleAvatar(backgroundColor:Color(0xFFEAF1FC),child:Icon(Icons.person,color:navy)),const SizedBox(width:8),Text(username,style:const TextStyle(fontWeight:FontWeight.w600)),
+  const Spacer(),const CircleAvatar(backgroundColor:Color(0xFFEAF1FC),child:Icon(Icons.person,color:navy)),const SizedBox(width:8),Text(username,style:const TextStyle(fontWeight:FontWeight.w600)),
   IconButton(tooltip:'Log out',onPressed:onLogout,icon:const Icon(Icons.logout,color:navy))
  ]));
 }
@@ -249,7 +247,7 @@ class DashboardPage extends StatelessWidget {
  @override Widget build(BuildContext context)=>AnimatedBuilder(animation:store,builder:(context,_){
   final total=store.items.length,available=store.items.where((x)=>x.status=='Available').length,issued=store.items.where((x)=>x.status=='Issued').length,defective=store.items.where((x)=>x.status=='Defective').length;
   final now=DateTime.now();
-  final months=List.generate(6,(i)=>DateTime(now.year,now.month-5+i));
+  final months=List.generate(12,(i)=>DateTime(now.year,now.month-11+i));
   final monthlyAssets=months.map((month)=>store.items.where((item)=>item.createdAt.year==month.year&&item.createdAt.month==month.month).toList()).toList();
   final maxMonthlyCount=monthlyAssets.map((assets)=>assets.length).fold<int>(0,(max,count)=>count>max?count:max);
   return SingleChildScrollView(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -261,7 +259,9 @@ class DashboardPage extends StatelessWidget {
     _StatCard(title:'Defective',value:'$defective',icon:Icons.warning_rounded,color:const Color(0xFFE3485B)),
    ]),
    const SizedBox(height:20),LayoutBuilder(builder:(context,c)=>Wrap(spacing:16,runSpacing:16,children:[
-    SizedBox(width:c.maxWidth>950?c.maxWidth*.57:c.maxWidth,child:_Panel(title:'Inventory Overview',child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    SizedBox(width:c.maxWidth>950?c.maxWidth*.57:c.maxWidth,child:_Panel(title:'Monthly Headset Count',child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      const Text('Counts follow the Date entered for each headset.',style:TextStyle(fontSize:11,color:Colors.blueGrey)),
+      const SizedBox(height:8),
       const Row(children:[_Legend(color:blue,label:'Total'),_Legend(color:Color(0xFF10A779),label:'Available'),_Legend(color:Color(0xFFF28B24),label:'Issued'),_Legend(color:Color(0xFFE3485B),label:'Defective')]),
       const SizedBox(height:12),_MonthlyInventoryChart(months:months,monthlyAssets:monthlyAssets,maxCount:maxMonthlyCount)
     ]))),
