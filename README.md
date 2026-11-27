@@ -20,7 +20,7 @@ flutter run -d windows
 ## Important security limitation
 This login edition stores viewer accounts locally in the browser/app installation using SharedPreferences. It is a functional UI/demo access gate, **not secure cloud authentication**. Viewer accounts do not automatically sync to other PCs. Do not use this local login for real company data or expose the app publicly.
 
-The Supabase inventory connection from the previous starter is retained, but this login gate does not authenticate users to Supabase. For production cloud deployment, implement Supabase Auth and role-based Row Level Security, and provision the first administrator securely. Never store plain-text passwords in a database or ship a service-role key in a Flutter app.
+The Flutter app uses a Cloudflare Pages Function at `/api/headsets`, backed by the D1 database configured in `wrangler.jsonc`. The app polls the shared inventory every four seconds so dashboard, inventory, and assignments stay current across open sessions. It also caches the last data locally for offline viewing.
 
 ## Deploy the Flutter web app with Cloudflare Wrangler
 
@@ -45,13 +45,15 @@ npx wrangler@latest login
 npx wrangler@latest deploy
 ```
 
-If you use Supabase, pass the project URL and **anon** key at build time:
+Initialize the D1 table once, then deploy the Pages output together with the `functions/` directory:
 
 ```bash
-flutter build web --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+npx wrangler d1 execute inventory --remote --file=migrations/0001_create_headsets.sql
+flutter build web
+npx wrangler pages deploy build/web --project-name headset-inventory --branch main
 ```
 
-The anon key is exposed in the browser build, so protect the database with correct Supabase Row Level Security policies. Do not use a service-role key here. This Wrangler setup deploys the Flutter app; the separate `portal/` site served by `server.js` is not included.
+The login in this starter is a client-side demo gate. The D1 API is public, so do not store confidential employee or inventory information until server-side authentication and authorization are added. The separate `portal/` site served by `server.js` is not included.
 
 ## Test the Flutter app as a website with GitHub Pages
 

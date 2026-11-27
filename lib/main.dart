@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 
 const navy = Color(0xFF092B61);
 const blue = Color(0xFF1265D8);
@@ -11,18 +12,7 @@ const bg = Color(0xFFF4F7FC);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const url = String.fromEnvironment('SUPABASE_URL');
-  const key = String.fromEnvironment('SUPABASE_ANON_KEY');
-  if (url.isNotEmpty && key.isNotEmpty) {
-    await Supabase.initialize(url: url, anonKey: key);
-  }
   runApp(const HeadsetApp());
-}
-
-bool get cloudReady {
-  const url = String.fromEnvironment('SUPABASE_URL');
-  const key = String.fromEnvironment('SUPABASE_ANON_KEY');
-  return url.isNotEmpty && key.isNotEmpty;
 }
 
 class HeadsetApp extends StatelessWidget {
@@ -62,32 +52,82 @@ class Headset {
 
 class InventoryStore extends ChangeNotifier {
   final List<Headset> items = [];
-  bool get online => cloudReady;
+  static const _cacheKey='headset_inventory_cache_v1';
+  final http.Client _client=http.Client();
+  Timer? _refreshTimer;
+  bool _online=false;
+  bool get online => _online;
+  Uri get _endpoint=>Uri.base.resolve('/api/headsets');
+
   Future<void> load() async {
-    if (!online) return;
-    try {
-      final rows = await Supabase.instance.client.from('headsets').select().order('created_at',ascending:false);
-      items..clear()..addAll(rows.map((e)=>Headset.fromMap(e)));
-      notifyListeners();
-    } catch (_) {}
+    final prefs=await SharedPreferences.getInstance();
+    final cached=prefs.getString(_cacheKey);
+    if(cached!=null){
+      try{
+        final rows=(jsonDecode(cached) as List).cast<Map<String,dynamic>>();
+        items..clear()..addAll(rows.map(Headset.fromMap));
+        notifyListeners();
+      }catch(_){}
+    }
+    await refreshFromCloud();
+    _refreshTimer?.cancel();
+    _refreshTimer=Timer.periodic(const Duration(seconds:4),(_)=>refreshFromCloud());
   }
+
+  Future<void> _cacheItems() async{
+    final prefs=await SharedPreferences.getInstance();
+    await prefs.setString(_cacheKey,jsonEncode(items.map((h)=>{'id':h.id,...h.toMap()}).toList()));
+  }
+
+  Future<void> refreshFromCloud() async {
+    try {
+      final response=await _client.get(_endpoint).timeout(const Duration(seconds:5));
+      if(response.statusCode!=200)throw Exception('Inventory API returned ${response.statusCode}');
+      final decoded=jsonDecode(response.body) as List;
+      final rows=decoded.map((row)=>Headset.fromMap(Map<String,dynamic>.from(row as Map))).toList();
+      final before=jsonEncode(items.map((h)=>{'id':h.id,...h.toMap()}).toList());
+      final after=jsonEncode(rows.map((h)=>{'id':h.id,...h.toMap()}).toList());
+      final connectionChanged=!_online;
+      _online=true;
+      if(before!=after){
+        items..clear()..addAll(rows);
+        await _cacheItems();
+        notifyListeners();
+      }else if(connectionChanged){notifyListeners();}
+    } catch (_) { _online=false; }
+  }
+
+  Future<void> _writeRemote(String method,Map<String,dynamic> body) async{
+    final response=await _client.send(http.Request(method,_endpoint)
+      ..headers['content-type']='application/json'
+      ..body=jsonEncode(body)).timeout(const Duration(seconds:10));
+    if(response.statusCode<200||response.statusCode>=300){
+      throw Exception('Inventory API returned ${response.statusCode}: ${await response.stream.bytesToString()}');
+    }
+    _online=true;
+  }
+
   Future<void> add(Headset h) async {
-    if (online) {
-      final row = await Supabase.instance.client.from('headsets').insert(h.toMap()).select().single();
-      items.insert(0,Headset.fromMap(row));
-    } else { items.insert(0,h); }
+    try{await _writeRemote('POST',{'id':h.id,...h.toMap()});}catch(_){_online=false;}
+    items.insert(0,h);
+    await _cacheItems();
     notifyListeners();
   }
   Future<void> update(Headset h) async {
-    if (online) {
-      final row = await Supabase.instance.client.from('headsets').update(h.toMap()).eq('id',h.id).select().single();
-      final i=items.indexWhere((x)=>x.id==h.id); if(i>=0) items[i]=Headset.fromMap(row);
-    } else { final i=items.indexWhere((x)=>x.id==h.id); if(i>=0) items[i]=h; }
+    try{await _writeRemote('PUT',{'id':h.id,...h.toMap()});}catch(_){_online=false;}
+    final i=items.indexWhere((x)=>x.id==h.id); if(i>=0) items[i]=h;
+    await _cacheItems();
     notifyListeners();
   }
   Future<void> delete(Headset h) async {
-    if (online) await Supabase.instance.client.from('headsets').delete().eq('id',h.id);
+    try{await _writeRemote('DELETE',{'id':h.id});}catch(_){_online=false;}
     items.removeWhere((x)=>x.id==h.id); notifyListeners();
+    await _cacheItems();
+  }
+  @override void dispose(){
+    _refreshTimer?.cancel();
+    _client.close();
+    super.dispose();
   }
 }
 
@@ -132,6 +172,7 @@ class _InventoryShellState extends State<InventoryShell> {
   final store=InventoryStore();
   int page=0;
   @override void initState(){super.initState();store.load();}
+  @override void dispose(){store.dispose();super.dispose();}
   Future<void> _logout() async{
     final prefs=await SharedPreferences.getInstance();
     await prefs.remove('session_username');
@@ -149,7 +190,7 @@ class _InventoryShellState extends State<InventoryShell> {
     return Scaffold(body:Row(children:[
       if(wide) _Sidebar(page:page,onSelect:(v)=>setState(()=>page=v),isAdmin:widget.isAdmin),
       Expanded(child:Column(children:[
-        _Topbar(online:store.online,username:widget.username,onLogout:_logout,onMenu:wide?null:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Use the bottom navigation to switch pages.')))),
+        AnimatedBuilder(animation:store,builder:(context,_)=>_Topbar(online:store.online,username:widget.username,onLogout:_logout,onMenu:wide?null:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Use the bottom navigation to switch pages.'))))),
         Expanded(child:pages[page]),
         if(!wide) NavigationBar(selectedIndex:page,onDestinationSelected:(v)=>setState(()=>page=v),
           destinations:[
@@ -618,7 +659,7 @@ class _InventoryPageState extends State<InventoryPage>{
 
 class AssignmentsPage extends StatelessWidget {final InventoryStore store;const AssignmentsPage({super.key,required this.store});@override Widget build(BuildContext context)=>AnimatedBuilder(animation:store,builder:(context,_){final assigned=store.items.where((h)=>h.status=='Issued').toList();return Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Assignments',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),const Text('Track headsets issued to employees',style:TextStyle(color:Colors.blueGrey)),const SizedBox(height:20),Expanded(child:Card(child:ListView(children:assigned.map((h)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(h.assignedTo.isEmpty?'Employee not specified':h.assignedTo),subtitle:Text('${h.tag} • ${h.brand} ${h.model} • ${h.department}'),trailing:const _StatusChip('Issued'))).toList())))]));});}
 class ReportsPage extends StatelessWidget {final InventoryStore store;const ReportsPage({super.key,required this.store});@override Widget build(BuildContext context)=>AnimatedBuilder(animation:store,builder:(context,_){return Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Reports',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),const Text('Inventory summary',style:TextStyle(color:Colors.blueGrey)),const SizedBox(height:20),_Panel(title:'Current Stock Summary',child:Column(children:['Available','Issued','Defective'].map((s){final n=store.items.where((h)=>h.status==s).length;return ListTile(title:Text(s),trailing:Text('$n',style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold)));}).toList()))]));});}
-class SettingsPage extends StatelessWidget {const SettingsPage({super.key});@override Widget build(BuildContext context)=>const Padding(padding:EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Settings',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),SizedBox(height:16),Card(child:ListTile(leading:Icon(Icons.cloud_outlined),title:Text('Cloud database'),subtitle:Text('Connect a Supabase project using the setup guide in README.md.'))),Card(child:ListTile(leading:Icon(Icons.security_outlined),title:Text('Access control'),subtitle:Text('Enable Supabase Auth and Row Level Security before production use.')))]));}
+class SettingsPage extends StatelessWidget {const SettingsPage({super.key});@override Widget build(BuildContext context)=>const Padding(padding:EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Settings',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),SizedBox(height:16),Card(child:ListTile(leading:Icon(Icons.cloud_outlined),title:Text('Cloud database'),subtitle:Text('Inventory is saved to Cloudflare D1 and refreshes across open sessions.'))),Card(child:ListTile(leading:Icon(Icons.security_outlined),title:Text('Access control'),subtitle:Text('This public demo uses local login. Add server-side authentication before storing confidential inventory.')))]));}
 
 
 // Local starter authentication. Viewer accounts are stored on this device.
