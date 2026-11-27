@@ -579,7 +579,7 @@ class _InventoryPageState extends State<InventoryPage>{
 
   Future<void> _addHeadset() async{
     if(widget.readOnly)return;
-    final tag=TextEditingController(text:_nextAssetTag());
+    final tag=TextEditingController();
     final brand=TextEditingController();
     final model=TextEditingController();
     final serial=TextEditingController();
@@ -587,7 +587,7 @@ class _InventoryPageState extends State<InventoryPage>{
     final notes=TextEditingController();
     final date=TextEditingController(text:DateFormat('MM/dd/yyyy').format(DateTime.now()));
     var status='Available';
-    var department='ONLINE';
+    String? department;
     var createdAt=DateTime.now();
     final shouldSave=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialogState)=>Dialog(
       child:SizedBox(width:420,child:SingleChildScrollView(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[
@@ -596,7 +596,7 @@ class _InventoryPageState extends State<InventoryPage>{
           IconButton(tooltip:'Close',onPressed:()=>Navigator.pop(dialogContext,false),icon:const Icon(Icons.close,color:Colors.blueGrey)),
         ]),
         const SizedBox(height:8),
-        _addFormField('Asset Tag',tag,'HS-0001'),
+        _addFormField('Asset Tag',tag,'e.g. HS-0001'),
         _addFormField('Brand',brand,'e.g. Logitech, Jabra'),
         _addFormField('Model',model,'e.g. H570e, Evolve 20'),
         _addFormField('Serial Number',serial,'e.g. LGT-90211'),
@@ -628,9 +628,9 @@ class _InventoryPageState extends State<InventoryPage>{
           const Text('Department',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
           const SizedBox(height:6),
           DropdownButtonFormField<String>(
-            value:department,decoration:_cellDecoration(),isExpanded:true,
+            value:department,hint:const Text('Select Department'),decoration:_cellDecoration(),isExpanded:true,
             items:['ONLINE','BOOTH','SGM','UNO DIGITAL BANK'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
-            onChanged:(value){if(value!=null)setDialogState(()=>department=value);},
+            onChanged:(value)=>setDialogState(()=>department=value),
           ),
         ]),
         _addFormField('Remarks / Notes',notes,'e.g. USB Headset, Wireless'),
@@ -652,8 +652,8 @@ class _InventoryPageState extends State<InventoryPage>{
       return;
     }
     createdAt=enteredDate;
-    if(tag.text.trim().isEmpty||brand.text.trim().isEmpty||model.text.trim().isEmpty){
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset Tag, Brand, and Model are required.')));
+    if(tag.text.trim().isEmpty||brand.text.trim().isEmpty||model.text.trim().isEmpty||department==null){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset Tag, Brand, Model, and Department are required.')));
       tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();notes.dispose();date.dispose();
       return;
     }
@@ -664,7 +664,7 @@ class _InventoryPageState extends State<InventoryPage>{
     }
     final headset=Headset(
       id:DateTime.now().microsecondsSinceEpoch.toString(),tag:tag.text.trim(),brand:brand.text.trim(),model:model.text.trim(),
-      serial:serial.text.trim(),status:status,assignedTo:assignedTo.text.trim(),department:department,
+      serial:serial.text.trim(),status:status,assignedTo:assignedTo.text.trim(),department:department!,
       notes:notes.text.trim(),createdAt:createdAt,
     );
     try{
