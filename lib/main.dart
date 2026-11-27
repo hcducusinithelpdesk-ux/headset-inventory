@@ -398,9 +398,12 @@ class _InventoryPageState extends State<InventoryPage>{
     ).toList();
     for(final headset in rows){drafts.putIfAbsent(headset.id,()=>_HeadsetDraft(headset));}
     return Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text('Headset Inventory',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),
-        Text('Manage headset assets and stock records',style:TextStyle(color:Colors.blueGrey)),
+      Row(children:[
+        const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text('Headset Inventory',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),
+          Text('Manage headset assets and stock records',style:TextStyle(color:Colors.blueGrey)),
+        ])),
+        if(!widget.readOnly)FilledButton.icon(onPressed:_addHeadset,icon:const Icon(Icons.add),label:const Text('Add Headset')),
       ]),
       const SizedBox(height:18),
       Row(children:[
@@ -466,6 +469,84 @@ class _InventoryPageState extends State<InventoryPage>{
       ))),
     ]));
   });
+
+  String _nextAssetTag(){
+    final used=widget.store.items.map((headset)=>headset.tag).toSet();
+    var number=widget.store.items.length+1;
+    var tag='HS-${number.toString().padLeft(4,'0')}';
+    while(used.contains(tag)){
+      number++;
+      tag='HS-${number.toString().padLeft(4,'0')}';
+    }
+    return tag;
+  }
+
+  Future<void> _addHeadset() async{
+    if(widget.readOnly)return;
+    final tag=TextEditingController(text:_nextAssetTag());
+    final brand=TextEditingController();
+    final model=TextEditingController();
+    final serial=TextEditingController();
+    final assignedTo=TextEditingController();
+    final department=TextEditingController();
+    final notes=TextEditingController();
+    var status='Available';
+    var createdAt=DateTime.now();
+    final shouldSave=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialogState)=>AlertDialog(
+      title:const Text('Add Headset'),
+      content:SizedBox(width:460,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        for(final field in [('Asset Tag',tag),('Brand',brand),('Model',model),('Serial Number',serial),('Agent Name',assignedTo),('Department',department),('Remarks',notes)])
+          Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:field.$2,decoration:InputDecoration(labelText:field.$1,border:const OutlineInputBorder()))),
+        DropdownButtonFormField<String>(
+          value:status,
+          decoration:const InputDecoration(labelText:'Status',border:OutlineInputBorder()),
+          items:['Available','Issued','Defective'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
+          onChanged:(value){if(value!=null)setDialogState(()=>status=value);},
+        ),
+        const SizedBox(height:10),
+        InkWell(
+          onTap:()async{
+            final picked=await showDatePicker(context:dialogContext,initialDate:createdAt,firstDate:DateTime(2000),lastDate:DateTime(2100));
+            if(picked!=null)setDialogState(()=>createdAt=picked);
+          },
+          child:InputDecorator(
+            decoration:const InputDecoration(labelText:'Date',border:OutlineInputBorder(),suffixIcon:Icon(Icons.calendar_today)),
+            child:Text(DateFormat('MM/dd/yyyy').format(createdAt)),
+          ),
+        ),
+      ]))),
+      actions:[
+        TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Cancel')),
+        FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Add Headset')),
+      ],
+    )));
+    if(shouldSave!=true||!mounted){
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+      return;
+    }
+    if(tag.text.trim().isEmpty||brand.text.trim().isEmpty||model.text.trim().isEmpty){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset Tag, Brand, and Model are required.')));
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+      return;
+    }
+    if(widget.store.items.any((headset)=>headset.tag.toLowerCase()==tag.text.trim().toLowerCase())){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset tag already exists.')));
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+      return;
+    }
+    final headset=Headset(
+      id:DateTime.now().microsecondsSinceEpoch.toString(),tag:tag.text.trim(),brand:brand.text.trim(),model:model.text.trim(),
+      serial:serial.text.trim(),status:status,assignedTo:assignedTo.text.trim(),department:department.text.trim(),
+      notes:notes.text.trim(),createdAt:createdAt,
+    );
+    try{
+      await widget.store.add(headset);
+    }catch(e){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Add failed: $e')));
+    }finally{
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
+    }
+  }
 
   Future<void> _remove(BuildContext context,Headset headset) async{
     if(widget.readOnly)return;
