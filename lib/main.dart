@@ -531,7 +531,10 @@ class _InventoryPageState extends State<InventoryPage>{
             return DataRow(key:ValueKey(headset.id),cells:[
               DataCell(_textEditor(draft,draft.brand,width:180)),
               DataCell(_textEditor(draft,draft.serial,width:150)),
-              DataCell(SizedBox(width:130,child:Text(headset.tag,style:const TextStyle(fontWeight:FontWeight.w600,color:navy)))),
+              DataCell(SizedBox(width:130,child:InputDecorator(
+                decoration:_cellDecoration(),
+                child:Text(headset.tag,style:const TextStyle(fontWeight:FontWeight.w600,color:navy)),
+              ))),
               DataCell(_textEditor(draft,draft.assignedTo,width:165)),
               DataCell(_statusEditor(draft)),
               DataCell(_dateEditor(draft)),
@@ -735,8 +738,15 @@ class _LoginGateState extends State<LoginGate> {
     setState(()=>busy=true); error='';
     final prefs=await SharedPreferences.getInstance();
     final u=user.text.trim(), p=pass.text;
-    bool ok=u=='administrator' && p=='P@ssw0rd';
-    bool admin=ok;
+    bool ok=false,admin=false;
+    try{
+      final response=await http.post(Uri.base.resolve('/api/login'),headers:{'content-type':'application/json'},body:jsonEncode({'username':u,'password':p})).timeout(const Duration(seconds:5));
+      if(response.statusCode==200){
+        final result=jsonDecode(response.body) as Map<String,dynamic>;
+        ok=true;admin=result['role']=='admin';
+      }
+    }catch(_){}
+    if(!ok){ok=u=='administrator'&&p=='P@ssw0rd';admin=ok;}
     if(!ok){
       final users=prefs.getStringList('viewer_accounts')??[];
       for(final item in users){
@@ -768,7 +778,18 @@ class UsersPage extends StatefulWidget { const UsersPage({super.key}); @override
 class _UsersPageState extends State<UsersPage>{
   List<String> users=[];
   @override void initState(){super.initState();_load();}
-  Future<void> _load() async {final p=await SharedPreferences.getInstance();if(mounted)setState(()=>users=p.getStringList('viewer_accounts')??[]);}
+  Future<void> _load() async {
+    final prefs=await SharedPreferences.getInstance();
+    final saved=prefs.getStringList('viewer_accounts')??[];
+    if(mounted)setState(()=>users=saved);
+    for(final item in saved){
+      final parts=item.split('|');
+      if(parts.length!=2)continue;
+      try{
+        await http.post(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':parts[0],'password':parts[1]})).timeout(const Duration(seconds:5));
+      }catch(_){}
+    }
+  }
   Future<void> _add() async {
     final u=TextEditingController(),p=TextEditingController();
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Add View-Only User'),content:Column(mainAxisSize:MainAxisSize.min,children:[
@@ -780,10 +801,34 @@ class _UsersPageState extends State<UsersPage>{
       if(u.text.trim()=='administrator'||list.any((x)=>x.split('|').first==u.text.trim())){
         if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Username already exists.')));return;
       }
-      list.add('${u.text.trim()}|${p.text}');await prefs.setStringList('viewer_accounts',list);_load();
+      final username=u.text.trim(),password=p.text;
+      list.add('$username|$password');await prefs.setStringList('viewer_accounts',list);
+      try{
+        final response=await http.post(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':username,'password':password})).timeout(const Duration(seconds:5));
+        if(response.statusCode!=201&&response.statusCode!=409&&mounted){
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Account saved on this device; cloud sync failed. It will retry later.')));
+        }
+      }catch(_){
+        if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Account saved on this device; cloud sync failed. It will retry later.')));
+      }
+      _load();
     }
   }
-  Future<void> _remove(String item) async {final p=await SharedPreferences.getInstance();users.remove(item);await p.setStringList('viewer_accounts',users);if(mounted)setState((){});}
+  Future<void> _remove(String item) async {
+    final username=item.split('|').first;
+    var cloudRemoved=false;
+    try{
+      final response=await http.delete(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':username})).timeout(const Duration(seconds:5));
+      cloudRemoved=response.statusCode==200;
+    }catch(_){}
+    final prefs=await SharedPreferences.getInstance();
+    users.remove(item);
+    await prefs.setStringList('viewer_accounts',users);
+    if(mounted){
+      setState((){});
+      if(!cloudRemoved)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Removed on this device; cloud account could not be removed.')));
+    }
+  }
   @override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
     Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('User Management',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),Text('Create accounts with view-only permissions',style:TextStyle(color:Colors.blueGrey))])),FilledButton.icon(onPressed:_add,icon:const Icon(Icons.person_add_alt_1),label:const Text('Add User'))]),
     const SizedBox(height:20),Expanded(child:Card(child:ListView(children:[

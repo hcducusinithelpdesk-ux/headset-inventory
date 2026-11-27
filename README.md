@@ -18,7 +18,7 @@ flutter run -d windows
 ```
 
 ## Important security limitation
-This login edition stores viewer accounts locally in the browser/app installation using SharedPreferences. It is a functional UI/demo access gate, **not secure cloud authentication**. Viewer accounts do not automatically sync to other PCs. Do not use this local login for real company data or expose the app publicly.
+Viewer accounts are stored in the Cloudflare D1 database with salted password hashes, so accounts created by the administrator can sign in from other networks and devices. A local copy is retained for offline use. The administrator login is still a demo credential, and the inventory API is public; add server-side authorization before using real company or employee data.
 
 The Flutter app uses a Cloudflare Pages Function at `/api/headsets`, backed by the D1 database configured in `wrangler.jsonc`. The app polls the shared inventory every four seconds so dashboard, inventory, and assignments stay current across open sessions. It also caches the last data locally for offline viewing.
 
