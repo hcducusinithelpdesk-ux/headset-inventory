@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -55,7 +57,7 @@ class Headset {
     createdAt: DateTime.tryParse('${m['created_at']}') ?? DateTime.now());
   Map<String,dynamic> toMap() => {'asset_tag':tag,'brand':brand,'model':model,
     'serial_number':serial,'status':status,'assigned_to':assignedTo,
-    'department':department,'notes':notes};
+    'department':department,'notes':notes,'created_at':createdAt.toIso8601String()};
 }
 
 class InventoryStore extends ChangeNotifier {
@@ -259,51 +261,236 @@ class _Legend extends StatelessWidget {final Color color;final String label;cons
 class _StatusBar extends StatelessWidget {final String label;final int count,total;final Color color;const _StatusBar({required this.label,required this.count,required this.total,required this.color});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.symmetric(vertical:9),child:Column(children:[Row(children:[Expanded(child:Text(label,style:const TextStyle(fontWeight:FontWeight.w600))),Text('$count',style:const TextStyle(fontWeight:FontWeight.bold))]),const SizedBox(height:7),ClipRRect(borderRadius:BorderRadius.circular(8),child:LinearProgressIndicator(value:total==0?0:count/total,minHeight:9,backgroundColor:bg,color:color))]));}
 class _StatusChip extends StatelessWidget {final String status;const _StatusChip(this.status);@override Widget build(BuildContext context){final color=status=='Available'?Colors.green:status=='Issued'?blue:Colors.red;return Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:color.withOpacity(.1),borderRadius:BorderRadius.circular(20)),child:Text(status,style:TextStyle(color:color,fontSize:11,fontWeight:FontWeight.bold)));}}
 
-class InventoryPage extends StatefulWidget {final InventoryStore store; final bool readOnly; const InventoryPage({super.key,required this.store, this.readOnly=false});@override State<InventoryPage> createState()=>_InventoryPageState();}
-class _InventoryPageState extends State<InventoryPage>{
- String query='';String filter='All';
- @override Widget build(BuildContext context)=>AnimatedBuilder(animation:widget.store,builder:(context,_){
-  final rows=widget.store.items.where((h)=>(filter=='All'||h.status==filter)&&('${h.tag} ${h.brand} ${h.model} ${h.serial}'.toLowerCase().contains(query.toLowerCase()))).toList();
-  return Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-   Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Headset Inventory',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),Text('Manage headset assets and stock records',style:TextStyle(color:Colors.blueGrey))])),if(!widget.readOnly) FilledButton.icon(onPressed:()=>_edit(context),icon:const Icon(Icons.add),label:const Text('Add Headset'))]),
-   const SizedBox(height:18),Row(children:[Expanded(child:TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Search asset tag, brand, model...',filled:true,fillColor:Colors.white,border:OutlineInputBorder(borderSide:BorderSide.none,borderRadius:BorderRadius.all(Radius.circular(12)))),onChanged:(v)=>setState(()=>query=v))),const SizedBox(width:12),DropdownButton<String>(value:filter,items:['All','Available','Issued','Defective'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>filter=v!))]),
-   const SizedBox(height:14),Expanded(child:Card(child:rows.isEmpty?const Center(child:Text('No headset records found.')):SingleChildScrollView(scrollDirection:Axis.horizontal,child:SingleChildScrollView(child:DataTable(columns:[
-    const DataColumn(label:Text('BRAND')),const DataColumn(label:Text('SERIAL')),const DataColumn(label:Text('AGENT NAME')),const DataColumn(label:Text('STATUS')),const DataColumn(label:Text('DATE')),const DataColumn(label:Text('REMARKS')),
-    if(!widget.readOnly) const DataColumn(label:Text('REMOVE')),
-   ],rows:rows.map((h)=>DataRow(cells:[
-    DataCell(Text(h.brand)),DataCell(Text(h.serial.isEmpty?'—':h.serial)),DataCell(Text(h.assignedTo.isEmpty?'—':h.assignedTo)),DataCell(_StatusChip(h.status)),DataCell(Text(DateFormat.yMd().format(h.createdAt))),DataCell(Text(h.notes.isEmpty?'—':h.notes)),
-    if(!widget.readOnly) DataCell(TextButton(onPressed:()=>_remove(context,h),style:TextButton.styleFrom(foregroundColor:Colors.red),child:const Text('Remove'))),
-   ])).toList())))))
-  ]));
- });
- Future<void> _remove(BuildContext context,Headset headset) async {
-  if(widget.readOnly)return;
-  final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-   title:const Text('Remove headset?'),
-   content:Text('Remove ${headset.tag} from inventory?'),
-   actions:[
-    TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
-    FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Remove')),
-   ],
-  ));
-  if(confirmed!=true||!context.mounted)return;
-  try{await widget.store.delete(headset);}catch(e){
-   if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Remove failed: $e')));
+class _HeadsetDraft {
+  Headset base;
+  final TextEditingController brand;
+  final TextEditingController serial;
+  final TextEditingController assignedTo;
+  final TextEditingController notes;
+  final TextEditingController date;
+  String status;
+  DateTime createdAt;
+  Timer? timer;
+
+  _HeadsetDraft(Headset headset)
+      : base=headset,
+        brand=TextEditingController(text:headset.brand),
+        serial=TextEditingController(text:headset.serial),
+        assignedTo=TextEditingController(text:headset.assignedTo),
+        notes=TextEditingController(text:headset.notes),
+        date=TextEditingController(text:DateFormat('MM/dd/yyyy').format(headset.createdAt)),
+        status=headset.status,
+        createdAt=headset.createdAt;
+
+  Headset toHeadset()=>Headset(
+    id:base.id,tag:base.tag,brand:brand.text,model:base.model,serial:serial.text,
+    status:status,assignedTo:assignedTo.text,department:base.department,
+    notes:notes.text,createdAt:createdAt,
+  );
+
+  void dispose(){
+    timer?.cancel();
+    brand.dispose();
+    serial.dispose();
+    assignedTo.dispose();
+    notes.dispose();
+    date.dispose();
   }
- }
- Future<void> _edit(BuildContext context,[Headset? h]) async{
-  final tag=TextEditingController(text:h?.tag??'HS-${(widget.store.items.length+1).toString().padLeft(4,'0')}'),brand=TextEditingController(text:h?.brand??''),model=TextEditingController(text:h?.model??''),serial=TextEditingController(text:h?.serial??''),person=TextEditingController(text:h?.assignedTo??''),dept=TextEditingController(text:h?.department??''),notes=TextEditingController(text:h?.notes??'');
-  String status=h?.status??'Available';
-  DateTime selectedDate=h?.createdAt??DateTime.now();
-  await showDialog(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(title:Text(h==null?'Add Headset':'Edit Headset'),content:SizedBox(width:430,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-   for(final pair in [('Asset Tag',tag),('Brand',brand),('Model',model),('Serial Number',serial),('Assigned To',person),('Department',dept),('Remarks',notes)]) Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:pair.$2,decoration:InputDecoration(labelText:pair.$1,border:const OutlineInputBorder()))),
-   DropdownButtonFormField<String>(value:status,decoration:const InputDecoration(labelText:'Status'),items:['Available','Issued','Defective'].map((s)=>DropdownMenuItem(value:s,child:Text(s))).toList(),onChanged:(v)=>setD(()=>status=v!)),
-   const SizedBox(height:10),InkWell(onTap:()async{final picked=await showDatePicker(context:ctx,initialDate:selectedDate,firstDate:DateTime(2000),lastDate:DateTime(2100));if(picked!=null)setD(()=>selectedDate=picked);},child:InputDecorator(decoration:const InputDecoration(labelText:'Date',border:OutlineInputBorder(),suffixIcon:Icon(Icons.calendar_today)),child:Text(DateFormat.yMd().format(selectedDate))))
-  ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:()async{
-   final item=Headset(id:h?.id??DateTime.now().microsecondsSinceEpoch.toString(),tag:tag.text,brand:brand.text,model:model.text,serial:serial.text,status:status,assignedTo:person.text,department:dept.text,notes:notes.text,createdAt:selectedDate);
-   try{if(h==null)await widget.store.add(item);else await widget.store.update(item);if(ctx.mounted)Navigator.pop(ctx);}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text('Save failed: $e')));}
-  },child:const Text('Save'))])));
- }
+}
+
+class InventoryPage extends StatefulWidget {
+  final InventoryStore store;
+  final bool readOnly;
+  const InventoryPage({super.key,required this.store,this.readOnly=false});
+  @override State<InventoryPage> createState()=>_InventoryPageState();
+}
+
+class _InventoryPageState extends State<InventoryPage>{
+  final Map<String,_HeadsetDraft> drafts={};
+  String query='';
+  String filter='All';
+
+  @override
+  void dispose(){
+    for(final draft in drafts.values){draft.dispose();}
+    super.dispose();
+  }
+
+  InputDecoration _cellDecoration({Widget? suffixIcon})=>InputDecoration(
+    isDense:true,
+    filled:true,
+    fillColor:Colors.white,
+    suffixIcon:suffixIcon,
+    contentPadding:const EdgeInsets.symmetric(horizontal:10,vertical:12),
+    border:OutlineInputBorder(borderRadius:BorderRadius.circular(8),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
+    enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(8),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
+    focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(8),borderSide:const BorderSide(color:blue)),
+  );
+
+  Widget _textEditor(_HeadsetDraft draft,TextEditingController controller,{double width=150})=>SizedBox(
+    width:width,
+    child:TextField(
+      controller:controller,
+      readOnly:widget.readOnly,
+      onChanged:widget.readOnly?null:(_)=>_queueSave(draft),
+      onSubmitted:widget.readOnly?null:(_)=>_saveDraft(draft),
+      decoration:_cellDecoration(),
+    ),
+  );
+
+  void _queueSave(_HeadsetDraft draft){
+    draft.timer?.cancel();
+    draft.timer=Timer(const Duration(milliseconds:800),()=>_saveDraft(draft));
+  }
+
+  Future<void> _saveDraft(_HeadsetDraft draft) async{
+    draft.timer?.cancel();
+    draft.timer=null;
+    if(widget.readOnly)return;
+    try{
+      final updated=draft.toHeadset();
+      await widget.store.update(updated);
+      draft.base=updated;
+    }catch(e){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Save failed: $e')));
+    }
+  }
+
+  Future<void> _pickDate(_HeadsetDraft draft) async{
+    if(widget.readOnly)return;
+    final picked=await showDatePicker(context:context,initialDate:draft.createdAt,firstDate:DateTime(2000),lastDate:DateTime(2100));
+    if(picked==null||!mounted)return;
+    draft.createdAt=picked;
+    draft.date.text=DateFormat('MM/dd/yyyy').format(picked);
+    await _saveDraft(draft);
+  }
+
+  Widget _statusEditor(_HeadsetDraft draft)=>SizedBox(
+    width:150,
+    child:widget.readOnly
+      ?InputDecorator(decoration:_cellDecoration(),child:Text(draft.status))
+      :DropdownButtonFormField<String>(
+        value:draft.status,
+        decoration:_cellDecoration(),
+        isExpanded:true,
+        items:['Available','Issued','Defective'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
+        onChanged:(value){
+          if(value==null)return;
+          draft.status=value;
+          _saveDraft(draft);
+        },
+      ),
+  );
+
+  Widget _dateEditor(_HeadsetDraft draft)=>SizedBox(
+    width:150,
+    child:TextField(
+      controller:draft.date,
+      readOnly:true,
+      onTap:widget.readOnly?null:()=>_pickDate(draft),
+      decoration:_cellDecoration(suffixIcon:IconButton(
+        onPressed:widget.readOnly?null:()=>_pickDate(draft),
+        icon:const Icon(Icons.calendar_today,size:18),
+      )),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context)=>AnimatedBuilder(animation:widget.store,builder:(context,_){
+    final rows=widget.store.items.where((headset)=>
+      (filter=='All'||headset.status==filter)&&
+      (headset.tag+' '+headset.brand+' '+headset.model+' '+headset.serial+' '+headset.assignedTo).toLowerCase().contains(query.toLowerCase())
+    ).toList();
+    for(final headset in rows){drafts.putIfAbsent(headset.id,()=>_HeadsetDraft(headset));}
+    return Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text('Headset Inventory',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),
+        Text('Manage headset assets and stock records',style:TextStyle(color:Colors.blueGrey)),
+      ]),
+      const SizedBox(height:18),
+      Row(children:[
+        Expanded(child:TextField(
+          decoration:InputDecoration(
+            prefixIcon:const Icon(Icons.search),
+            hintText:'Search asset tag, brand, model, serial...',
+            filled:true,
+            fillColor:Colors.white,
+            contentPadding:const EdgeInsets.symmetric(vertical:14),
+            border:OutlineInputBorder(borderRadius:BorderRadius.circular(10),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
+            enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(10),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
+          ),
+          onChanged:(value)=>setState(()=>query=value),
+        )),
+        const SizedBox(width:12),
+        SizedBox(width:145,child:DropdownButtonFormField<String>(
+          value:filter,
+          isExpanded:true,
+          decoration:_cellDecoration(),
+          items:['All','Available','Issued','Defective'].map((value)=>DropdownMenuItem(value:value,child:Text(value=='All'?'All Status':value))).toList(),
+          onChanged:(value)=>setState(()=>filter=value??'All'),
+        )),
+      ]),
+      const SizedBox(height:14),
+      Expanded(child:Card(child:rows.isEmpty?const Center(child:Text('No headset records found.')):SingleChildScrollView(
+        scrollDirection:Axis.horizontal,
+        child:SingleChildScrollView(child:DataTable(
+          headingRowColor:const WidgetStatePropertyAll(Color(0xFFF8FAFC)),
+          horizontalMargin:16,
+          columnSpacing:24,
+          columns:[
+            const DataColumn(label:Text('BRAND')),
+            const DataColumn(label:Text('SERIAL')),
+            const DataColumn(label:Text('AGENT NAME')),
+            const DataColumn(label:Text('STATUS')),
+            const DataColumn(label:Text('DATE')),
+            const DataColumn(label:Text('REMARKS')),
+            if(!widget.readOnly)const DataColumn(label:Text('REMOVE')),
+          ],
+          rows:rows.map((headset){
+            final draft=drafts[headset.id]!;
+            return DataRow(key:ValueKey(headset.id),cells:[
+              DataCell(_textEditor(draft,draft.brand,width:180)),
+              DataCell(_textEditor(draft,draft.serial,width:150)),
+              DataCell(_textEditor(draft,draft.assignedTo,width:165)),
+              DataCell(_statusEditor(draft)),
+              DataCell(_dateEditor(draft)),
+              DataCell(_textEditor(draft,draft.notes,width:150)),
+              if(!widget.readOnly)DataCell(SizedBox(width:90,child:OutlinedButton(
+                onPressed:()=>_remove(context,headset),
+                style:OutlinedButton.styleFrom(
+                  foregroundColor:Colors.red,
+                  backgroundColor:const Color(0xFFFFF7F7),
+                  side:BorderSide(color:Colors.red.shade200),
+                  padding:const EdgeInsets.symmetric(horizontal:10,vertical:11),
+                ),
+                child:const Text('Remove'),
+              ))),
+            ]);
+          }).toList(),
+        )),
+      ))),
+    ]));
+  });
+
+  Future<void> _remove(BuildContext context,Headset headset) async{
+    if(widget.readOnly)return;
+    final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Remove headset?'),
+      content:Text('Remove '+headset.tag+' from inventory?'),
+      actions:[
+        TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
+        FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Remove')),
+      ],
+    ));
+    if(confirmed!=true||!context.mounted)return;
+    try{
+      drafts[headset.id]?.timer?.cancel();
+      await widget.store.delete(headset);
+      drafts.remove(headset.id)?.dispose();
+    }catch(e){
+      if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Remove failed: $e')));
+    }
+  }
 }
 
 class AssignmentsPage extends StatelessWidget {final InventoryStore store;const AssignmentsPage({super.key,required this.store});@override Widget build(BuildContext context)=>AnimatedBuilder(animation:store,builder:(context,_){final assigned=store.items.where((h)=>h.status=='Issued').toList();return Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Assignments',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),const Text('Track headsets issued to employees',style:TextStyle(color:Colors.blueGrey)),const SizedBox(height:20),Expanded(child:Card(child:ListView(children:assigned.map((h)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(h.assignedTo.isEmpty?'Employee not specified':h.assignedTo),subtitle:Text('${h.tag} • ${h.brand} ${h.model} • ${h.department}'),trailing:const _StatusChip('Issued'))).toList())))]));});}
