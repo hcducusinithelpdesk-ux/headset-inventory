@@ -138,7 +138,10 @@ class _InventoryShellState extends State<InventoryShell> {
   final store=InventoryStore();
   int page=0;
   @override void initState(){super.initState();store.load();}
-  void _logout(){
+  Future<void> _logout() async{
+    final prefs=await SharedPreferences.getInstance();
+    await prefs.remove('session_username');
+    if(!mounted)return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder:(_)=>const LoginGate()),
       (route)=>false,
@@ -504,7 +507,25 @@ class LoginGate extends StatefulWidget {
 }
 class _LoginGateState extends State<LoginGate> {
   final user=TextEditingController(), pass=TextEditingController();
-  bool hide=true, busy=false; String error='';
+  bool hide=true, busy=false, checkingSession=true; String error='';
+  @override void initState(){super.initState();_restoreSession();}
+  Future<void> _restoreSession() async{
+    try{
+      final prefs=await SharedPreferences.getInstance();
+      final savedUser=prefs.getString('session_username');
+      var valid=savedUser=='administrator';
+      if(savedUser!=null&&!valid){
+        final accounts=prefs.getStringList('viewer_accounts')??[];
+        valid=accounts.any((account){final parts=account.split('|');return parts.length==2&&parts[0]==savedUser;});
+      }
+      if(valid&&mounted){
+        Navigator.pushReplacement(context,MaterialPageRoute(builder:(_)=>InventoryShell(username:savedUser!,isAdmin:savedUser=='administrator')));
+        return;
+      }
+      if(savedUser!=null)await prefs.remove('session_username');
+    }catch(_){}
+    if(mounted)setState(()=>checkingSession=false);
+  }
   Future<void> login() async {
     setState(()=>busy=true); error='';
     final prefs=await SharedPreferences.getInstance();
@@ -520,10 +541,13 @@ class _LoginGateState extends State<LoginGate> {
     }
     if(!mounted)return;
     setState(()=>busy=false);
-    if(ok) Navigator.pushReplacement(context,MaterialPageRoute(builder:(_)=>InventoryShell(username:u,isAdmin:admin)));
-    else setState(()=>error='Invalid username or password.');
+    if(ok){
+      await prefs.setString('session_username',u);
+      if(!mounted)return;
+      Navigator.pushReplacement(context,MaterialPageRoute(builder:(_)=>InventoryShell(username:u,isAdmin:admin)));
+    }else setState(()=>error='Invalid username or password.');
   }
-  @override Widget build(BuildContext context)=>Scaffold(backgroundColor:bg,body:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:420),child:Card(child:Padding(padding:const EdgeInsets.all(30),child:Column(mainAxisSize:MainAxisSize.min,children:[
+  @override Widget build(BuildContext context)=>checkingSession?const Scaffold(backgroundColor:bg,body:Center(child:CircularProgressIndicator())):Scaffold(backgroundColor:bg,body:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:420),child:Card(child:Padding(padding:const EdgeInsets.all(30),child:Column(mainAxisSize:MainAxisSize.min,children:[
     const CompanyLogo(height:52),
     const SizedBox(height:18),const Text('HEADSET INVENTORY',style:TextStyle(fontSize:23,fontWeight:FontWeight.bold,color:navy)),
     const SizedBox(height:5),const Text('Sign in to manage and view assets',style:TextStyle(color:Colors.blueGrey)),
