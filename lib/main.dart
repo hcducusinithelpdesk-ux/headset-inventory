@@ -146,7 +146,7 @@ class _InventoryShellState extends State<InventoryShell> {
   }
   @override Widget build(BuildContext context) {
     final wide=MediaQuery.sizeOf(context).width>800;
-    final pages=[DashboardPage(store:store,onInventory:()=>setState(()=>page=1)),
+    final pages=[DashboardPage(store:store),
       InventoryPage(store:store,readOnly:!widget.isAdmin), AssignmentsPage(store:store), ReportsPage(store:store), const SettingsPage(),
       if(widget.isAdmin) UsersPage()];
     return Scaffold(body:Row(children:[
@@ -205,8 +205,8 @@ class _Topbar extends StatelessWidget {
 }
 
 class DashboardPage extends StatelessWidget {
- final InventoryStore store; final VoidCallback onInventory;
- const DashboardPage({super.key,required this.store,required this.onInventory});
+ final InventoryStore store;
+ const DashboardPage({super.key,required this.store});
  @override Widget build(BuildContext context)=>AnimatedBuilder(animation:store,builder:(context,_){
   final total=store.items.length,available=store.items.where((x)=>x.status=='Available').length,issued=store.items.where((x)=>x.status=='Issued').length,defective=store.items.where((x)=>x.status=='Defective').length;
   return SingleChildScrollView(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -234,9 +234,7 @@ class DashboardPage extends StatelessWidget {
       const SizedBox(height:12),Text('$total total assets',style:const TextStyle(fontSize:12,color:Colors.blueGrey))
     ])))
    ])),
-   const SizedBox(height:20),_Panel(title:'Recent Inventory Activity',action:TextButton(onPressed:onInventory,child:const Text('View Inventory →')),child:Column(children:[
-    for(final h in store.items.take(5)) ListTile(contentPadding:EdgeInsets.zero,leading:CircleAvatar(backgroundColor:const Color(0xFFEAF1FC),child:const Icon(Icons.headset,color:blue)),title:Text('${h.tag}  •  ${h.brand} ${h.model}',style:const TextStyle(fontWeight:FontWeight.w600)),subtitle:Text(h.assignedTo.isEmpty?'Not assigned':h.assignedTo),trailing:_StatusChip(h.status))
-   ]))
+
   ]));
  });
 }
