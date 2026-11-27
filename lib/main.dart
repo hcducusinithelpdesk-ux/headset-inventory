@@ -519,6 +519,7 @@ class _InventoryPageState extends State<InventoryPage>{
           columns:[
             const DataColumn(label:Text('BRAND')),
             const DataColumn(label:Text('SERIAL')),
+            const DataColumn(label:Text('ASSET TAG')),
             const DataColumn(label:Text('AGENT NAME')),
             const DataColumn(label:Text('STATUS')),
             const DataColumn(label:Text('DATE')),
@@ -530,6 +531,7 @@ class _InventoryPageState extends State<InventoryPage>{
             return DataRow(key:ValueKey(headset.id),cells:[
               DataCell(_textEditor(draft,draft.brand,width:180)),
               DataCell(_textEditor(draft,draft.serial,width:150)),
+              DataCell(SizedBox(width:130,child:Text(headset.tag,style:const TextStyle(fontWeight:FontWeight.w600,color:navy)))),
               DataCell(_textEditor(draft,draft.assignedTo,width:165)),
               DataCell(_statusEditor(draft)),
               DataCell(_dateEditor(draft)),
