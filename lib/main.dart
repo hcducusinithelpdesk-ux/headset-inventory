@@ -184,7 +184,7 @@ class _InventoryShellState extends State<InventoryShell> {
   }
   @override Widget build(BuildContext context) {
     final wide=MediaQuery.sizeOf(context).width>800;
-    final pages=[DashboardPage(store:store),
+    final pages=[DashboardPage(store:store,onViewInventory:()=>setState(()=>page=1)),
       InventoryPage(store:store,readOnly:!widget.isAdmin), AssignmentsPage(store:store), ReportsPage(store:store), const SettingsPage(),
       if(widget.isAdmin) UsersPage()];
     return Scaffold(body:Row(children:[
@@ -244,7 +244,8 @@ class _Topbar extends StatelessWidget {
 
 class DashboardPage extends StatelessWidget {
  final InventoryStore store;
- const DashboardPage({super.key,required this.store});
+ final VoidCallback? onViewInventory;
+ const DashboardPage({super.key,required this.store,this.onViewInventory});
  @override Widget build(BuildContext context)=>AnimatedBuilder(animation:store,builder:(context,_){
   final total=store.items.length,available=store.items.where((x)=>x.status=='Available').length,issued=store.items.where((x)=>x.status=='Issued').length,defective=store.items.where((x)=>x.status=='Defective').length;
   final now=DateTime.now();
@@ -271,6 +272,19 @@ class DashboardPage extends StatelessWidget {
       const SizedBox(height:12),Text('$total total assets',style:const TextStyle(fontSize:12,color:Colors.blueGrey))
     ])))
    ])),
+   const SizedBox(height:20),
+   _Panel(title:'Recent Inventory Activity',action:TextButton(
+     onPressed:onViewInventory,
+     child:const Text('View Inventory →'),
+   ),child:store.items.isEmpty
+     ?const Padding(padding:EdgeInsets.symmetric(vertical:18),child:Text('No inventory activity yet.',style:TextStyle(color:Colors.blueGrey)))
+     :Column(children:store.items.take(5).map((headset)=>ListTile(
+       contentPadding:EdgeInsets.zero,
+       leading:const CircleAvatar(backgroundColor:Color(0xFFEAF1FC),child:Icon(Icons.headphones,color:blue)),
+       title:Text('${headset.tag} • ${headset.brand} ${headset.model}',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w600,color:navy)),
+       subtitle:Text(headset.assignedTo.isEmpty?'Not assigned':headset.assignedTo),
+       trailing:_StatusChip(headset.status),
+     )).toList())),
 
   ]));
  });
