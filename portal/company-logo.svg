@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 210" role="img" aria-labelledby="title">
+  <title id="title">H.C. Ducusin Incorporated</title>
+  <g transform="translate(8 8) scale(1.45 1)">
+    <ellipse cx="105" cy="94" rx="93" ry="88" fill="#10244a"/>
+    <ellipse cx="96" cy="103" rx="86" ry="82" fill="#2f63ad"/>
+    <ellipse cx="96" cy="103" rx="61" ry="57" fill="#10244a"/>
+    <ellipse cx="102" cy="98" rx="52" ry="48" fill="#ffffff"/>
+    <path d="M84 23h28v160H84z" fill="#2f63ad"/>
+  </g>
+  <text x="318" y="113" fill="#2f63ad" font-family="Georgia, 'Times New Roman', serif" font-size="100" letter-spacing="2">H.C.Ducusin</text>
+  <text x="322" y="178" fill="#2f63ad" font-family="Georgia, 'Times New Roman', serif" font-size="40" letter-spacing="11">INCORPORATED</text>
+</svg>

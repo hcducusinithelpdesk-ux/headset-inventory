@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "headset-inventory",
+  "compatibility_date": "2026-11-27",
+  "assets": {
+    "directory": "./build/web",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "inventory",
+      "database_id": "99ffc45a-e238-4140-8ad0-3027a596e813"
+    }
+  ]
+}
