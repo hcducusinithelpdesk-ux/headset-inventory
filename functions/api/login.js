@@ -19,6 +19,10 @@ export async function onRequestPost({ request, env }) {
   const password = String(input.password ?? "");
   if (!username || !password) return json({ error: "Username and password are required" }, 400);
 
+  if (username.toLowerCase() === "administrator" && env.ADMIN_PASSWORD && password === env.ADMIN_PASSWORD) {
+    return json({ username: "administrator", role: "admin" });
+  }
+
   const row = await env.DB.prepare("SELECT username, salt, password_hash FROM viewer_users WHERE username = ? COLLATE NOCASE")
     .bind(username).first();
   if (!row) return json({ error: "Invalid username or password" }, 401);

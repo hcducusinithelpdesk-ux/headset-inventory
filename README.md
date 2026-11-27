@@ -2,7 +2,7 @@
 
 ## Login preview
 - Username: `administrator`
-- Password: `P@ssw0rd`
+- Password: set the `ADMIN_PASSWORD` Pages secret in Cloudflare.
 - Admin can add/remove view-only accounts in User Management.
 - Viewer accounts can view dashboard, inventory, assignments and reports; add/edit/delete controls are hidden.
 
@@ -18,7 +18,7 @@ flutter run -d windows
 ```
 
 ## Important security limitation
-Viewer accounts are stored in the Cloudflare D1 database with salted password hashes, so accounts created by the administrator can sign in from other networks and devices. A local copy is retained for offline use. The administrator login is still a demo credential, and the inventory API is public; add server-side authorization before using real company or employee data.
+Viewer accounts are stored in the Cloudflare D1 database with salted password hashes, so accounts created by the administrator can sign in from other networks and devices. User creation and removal require the administrator password, which is stored as the `ADMIN_PASSWORD` Pages secret. A local copy is retained for offline use. The inventory API is public; add server-side authorization before using real company or employee data.
 
 The Flutter app uses a Cloudflare Pages Function at `/api/headsets`, backed by the D1 database configured in `wrangler.jsonc`. The app polls the shared inventory every four seconds so dashboard, inventory, and assignments stay current across open sessions. It also caches the last data locally for offline viewing.
 

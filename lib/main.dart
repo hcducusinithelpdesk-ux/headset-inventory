@@ -746,7 +746,6 @@ class _LoginGateState extends State<LoginGate> {
         ok=true;admin=result['role']=='admin';
       }
     }catch(_){}
-    if(!ok){ok=u=='administrator'&&p=='P@ssw0rd';admin=ok;}
     if(!ok){
       final users=prefs.getStringList('viewer_accounts')??[];
       for(final item in users){
@@ -782,52 +781,59 @@ class _UsersPageState extends State<UsersPage>{
     final prefs=await SharedPreferences.getInstance();
     final saved=prefs.getStringList('viewer_accounts')??[];
     if(mounted)setState(()=>users=saved);
-    for(final item in saved){
-      final parts=item.split('|');
-      if(parts.length!=2)continue;
-      try{
-        await http.post(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':parts[0],'password':parts[1]})).timeout(const Duration(seconds:5));
-      }catch(_){}
-    }
   }
   Future<void> _add() async {
-    final u=TextEditingController(),p=TextEditingController();
+    final u=TextEditingController(),p=TextEditingController(),adminPassword=TextEditingController();
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Add View-Only User'),content:Column(mainAxisSize:MainAxisSize.min,children:[
       TextField(controller:u,decoration:const InputDecoration(labelText:'Username')),
-      const SizedBox(height:12),TextField(controller:p,decoration:const InputDecoration(labelText:'Temporary password'))
+      const SizedBox(height:12),TextField(controller:p,decoration:const InputDecoration(labelText:'Temporary password')),
+      const SizedBox(height:12),TextField(controller:adminPassword,obscureText:true,decoration:const InputDecoration(labelText:'Administrator password')),
     ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Create User'))]));
-    if(ok==true && u.text.trim().isNotEmpty && p.text.isNotEmpty){
-      final prefs=await SharedPreferences.getInstance();final list=prefs.getStringList('viewer_accounts')??[];
-      if(u.text.trim()=='administrator'||list.any((x)=>x.split('|').first==u.text.trim())){
-        if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Username already exists.')));return;
-      }
+    if(ok==true && u.text.trim().isNotEmpty && p.text.isNotEmpty && adminPassword.text.isNotEmpty){
       final username=u.text.trim(),password=p.text;
-      list.add('$username|$password');await prefs.setStringList('viewer_accounts',list);
       try{
-        final response=await http.post(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':username,'password':password})).timeout(const Duration(seconds:5));
-        if(response.statusCode!=201&&response.statusCode!=409&&mounted){
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Account saved on this device; cloud sync failed. It will retry later.')));
+        final response=await http.post(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':username,'password':password,'adminPassword':adminPassword.text})).timeout(const Duration(seconds:5));
+        if(response.statusCode==201){
+          final prefs=await SharedPreferences.getInstance();
+          final list=prefs.getStringList('viewer_accounts')??[];
+          list.removeWhere((item)=>item.split('|').first.toLowerCase()==username.toLowerCase());
+          list.add('$username|$password');
+          await prefs.setStringList('viewer_accounts',list);
+          _load();
+        }else if(mounted){
+          final body=jsonDecode(response.body) as Map<String,dynamic>;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(body['error']?.toString()??'Could not create account.')));
         }
       }catch(_){
-        if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Account saved on this device; cloud sync failed. It will retry later.')));
+        if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Could not connect to the account service. Try again when online.')));
       }
-      _load();
     }
+    u.dispose();p.dispose();adminPassword.dispose();
   }
   Future<void> _remove(String item) async {
     final username=item.split('|').first;
-    var cloudRemoved=false;
+    final adminPassword=TextEditingController();
+    final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:Text('Remove $username?'),
+      content:TextField(controller:adminPassword,obscureText:true,decoration:const InputDecoration(labelText:'Administrator password')),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Remove'))],
+    ));
+    if(confirmed!=true){adminPassword.dispose();return;}
     try{
-      final response=await http.delete(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':username})).timeout(const Duration(seconds:5));
-      cloudRemoved=response.statusCode==200;
-    }catch(_){}
-    final prefs=await SharedPreferences.getInstance();
-    users.remove(item);
-    await prefs.setStringList('viewer_accounts',users);
-    if(mounted){
-      setState((){});
-      if(!cloudRemoved)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Removed on this device; cloud account could not be removed.')));
+      final response=await http.delete(Uri.base.resolve('/api/users'),headers:{'content-type':'application/json'},body:jsonEncode({'username':username,'adminPassword':adminPassword.text})).timeout(const Duration(seconds:5));
+      if(response.statusCode==200){
+        final prefs=await SharedPreferences.getInstance();
+        users.remove(item);
+        await prefs.setStringList('viewer_accounts',users);
+        if(mounted)setState((){});
+      }else if(mounted){
+        final body=jsonDecode(response.body) as Map<String,dynamic>;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(body['error']?.toString()??'Could not remove account.')));
+      }
+    }catch(_){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Could not connect to the account service. Try again when online.')));
     }
+    adminPassword.dispose();
   }
   @override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
     Row(children:[const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('User Management',style:TextStyle(fontSize:27,fontWeight:FontWeight.bold,color:navy)),Text('Create accounts with view-only permissions',style:TextStyle(color:Colors.blueGrey))])),FilledButton.icon(onPressed:_add,icon:const Icon(Icons.person_add_alt_1),label:const Text('Add User'))]),

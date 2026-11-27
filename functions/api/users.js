@@ -14,6 +14,7 @@ async function passwordHash(password, salt) {
 export async function onRequestPost({ request, env }) {
   let input;
   try { input = await request.json(); } catch { return json({ error: "Invalid request" }, 400); }
+  if (!env.ADMIN_PASSWORD || input.adminPassword !== env.ADMIN_PASSWORD) return json({ error: "Administrator authentication required" }, 401);
   const username = String(input.username ?? "").trim();
   const password = String(input.password ?? "");
   if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) {
@@ -36,6 +37,7 @@ export async function onRequestPost({ request, env }) {
 export async function onRequestDelete({ request, env }) {
   let input;
   try { input = await request.json(); } catch { return json({ error: "Invalid request" }, 400); }
+  if (!env.ADMIN_PASSWORD || input.adminPassword !== env.ADMIN_PASSWORD) return json({ error: "Administrator authentication required" }, 401);
   const username = String(input.username ?? "").trim();
   if (!username) return json({ error: "Username is required" }, 400);
   const result = await env.DB.prepare("DELETE FROM viewer_users WHERE username = ? COLLATE NOCASE").bind(username).run();
