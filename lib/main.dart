@@ -481,6 +481,21 @@ class _InventoryPageState extends State<InventoryPage>{
     return tag;
   }
 
+  Widget _addFormField(String label,TextEditingController controller,String hint)=>Padding(
+    padding:const EdgeInsets.only(bottom:13),
+    child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(label,style:const TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
+      const SizedBox(height:6),
+      TextField(controller:controller,decoration:InputDecoration(
+        hintText:hint,isDense:true,filled:true,fillColor:Colors.white,
+        contentPadding:const EdgeInsets.symmetric(horizontal:13,vertical:13),
+        border:OutlineInputBorder(borderRadius:BorderRadius.circular(11),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
+        enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(11),borderSide:const BorderSide(color:Color(0xFFD9E3F3))),
+        focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(11),borderSide:const BorderSide(color:blue)),
+      )),
+    ]),
+  );
+
   Future<void> _addHeadset() async{
     if(widget.readOnly)return;
     final tag=TextEditingController(text:_nextAssetTag());
@@ -492,33 +507,48 @@ class _InventoryPageState extends State<InventoryPage>{
     final notes=TextEditingController();
     var status='Available';
     var createdAt=DateTime.now();
-    final shouldSave=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialogState)=>AlertDialog(
-      title:const Text('Add Headset'),
-      content:SizedBox(width:460,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        for(final field in [('Asset Tag',tag),('Brand',brand),('Model',model),('Serial Number',serial),('Agent Name',assignedTo),('Department',department),('Remarks',notes)])
-          Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(controller:field.$2,decoration:InputDecoration(labelText:field.$1,border:const OutlineInputBorder()))),
-        DropdownButtonFormField<String>(
-          value:status,
-          decoration:const InputDecoration(labelText:'Status',border:OutlineInputBorder()),
-          items:['Available','Issued','Defective'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
-          onChanged:(value){if(value!=null)setDialogState(()=>status=value);},
-        ),
-        const SizedBox(height:10),
-        InkWell(
-          onTap:()async{
+    final shouldSave=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialogState)=>Dialog(
+      child:SizedBox(width:420,child:SingleChildScrollView(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[
+        Row(children:[
+          const Expanded(child:Text('Add Headset',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:navy))),
+          IconButton(tooltip:'Close',onPressed:()=>Navigator.pop(dialogContext,false),icon:const Icon(Icons.close,color:Colors.blueGrey)),
+        ]),
+        const SizedBox(height:8),
+        _addFormField('Asset Tag',tag,'HS-0001'),
+        _addFormField('Brand',brand,'e.g. Logitech, Jabra'),
+        _addFormField('Model',model,'e.g. H570e, Evolve 20'),
+        _addFormField('Serial Number',serial,'e.g. LGT-90211'),
+        Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Status',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
+          const SizedBox(height:6),
+          DropdownButtonFormField<String>(
+            value:status,decoration:_cellDecoration(),isExpanded:true,
+            items:['Available','Issued','Defective'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
+            onChanged:(value){if(value!=null)setDialogState(()=>status=value);},
+          ),
+        ]),
+        const SizedBox(height:13),
+        Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Date',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
+          const SizedBox(height:6),
+          InkWell(onTap:()async{
             final picked=await showDatePicker(context:dialogContext,initialDate:createdAt,firstDate:DateTime(2000),lastDate:DateTime(2100));
             if(picked!=null)setDialogState(()=>createdAt=picked);
-          },
-          child:InputDecorator(
-            decoration:const InputDecoration(labelText:'Date',border:OutlineInputBorder(),suffixIcon:Icon(Icons.calendar_today)),
+          },child:InputDecorator(
+            decoration:_cellDecoration(suffixIcon:const Icon(Icons.calendar_today,size:18)),
             child:Text(DateFormat('MM/dd/yyyy').format(createdAt)),
-          ),
-        ),
+          )),
+        ]),
+        const SizedBox(height:13),
+        _addFormField('Assigned To',assignedTo,'Employee Name'),
+        _addFormField('Department',department,'e.g. IT Support, Sales'),
+        _addFormField('Remarks / Notes',notes,'e.g. USB Headset, Wireless'),
+        Row(mainAxisAlignment:MainAxisAlignment.end,children:[
+          TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Cancel')),
+          const SizedBox(width:8),
+          FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Save Asset')),
+        ]),
       ]))),
-      actions:[
-        TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Cancel')),
-        FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('Add Headset')),
-      ],
     )));
     if(shouldSave!=true||!mounted){
       tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();
