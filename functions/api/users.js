@@ -3,7 +3,7 @@ const json = (value, status = 200) => new Response(JSON.stringify(value), {
   headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
 
-const toBase64 = bytes => btoa(String.fromCharCode(...bytes));
+const toBase64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)));
 
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
