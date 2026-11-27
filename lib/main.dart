@@ -213,7 +213,7 @@ class DashboardPage extends StatelessWidget {
       const Row(children:[_Legend(color:blue,label:'Total'),_Legend(color:Color(0xFF10A779),label:'Available'),_Legend(color:Color(0xFFF28B24),label:'Issued'),_Legend(color:Color(0xFFE3485B),label:'Defective')]),
       const SizedBox(height:22),SizedBox(height:150,child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(6,(i){
         final n=(total*(.55+i*.09)).round();return Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:5),child:Column(mainAxisAlignment:MainAxisAlignment.end,children:[
-          Container(height:(n==0?4:n.toDouble()).clamp(4,125),decoration:BoxDecoration(color:blue.withOpacity(.85),borderRadius:BorderRadius.circular(5))),
+          Container(height:(n==0?4.0:n.toDouble()).clamp(4.0,125.0).toDouble(),decoration:BoxDecoration(color:blue.withOpacity(.85),borderRadius:BorderRadius.circular(5))),
           const SizedBox(height:8),Text(['Jun','Jul','Aug','Sep','Oct','Nov'][i],style:const TextStyle(fontSize:11,color:Colors.blueGrey))
         ])));
       })))
@@ -278,7 +278,7 @@ class _InventoryPageState extends State<InventoryPage>{
   ]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:()async{
    final item=Headset(id:h?.id??DateTime.now().microsecondsSinceEpoch.toString(),tag:tag.text,brand:brand.text,model:model.text,serial:serial.text,status:status,assignedTo:person.text,department:dept.text,notes:notes.text,createdAt:selectedDate);
    try{if(h==null)await widget.store.add(item);else await widget.store.update(item);if(ctx.mounted)Navigator.pop(ctx);}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text('Save failed: $e')));}
-  },child:const Text('Save'))]));
+  },child:const Text('Save'))])));
  }
 }
 
