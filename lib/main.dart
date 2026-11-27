@@ -324,7 +324,6 @@ class _LoginGateState extends State<LoginGate> {
     const SizedBox(height:22),SizedBox(width:double.infinity,height:48,child:FilledButton(onPressed:busy?null:login,child:Text(busy?'Please wait...':'LOGIN'))),
     const SizedBox(height:14),const Text('Administrator access and view-only user access',textAlign:TextAlign.center,style:TextStyle(fontSize:11,color:Colors.blueGrey))
   ])))))));
-  }
 }
 
 class UsersPage extends StatefulWidget { const UsersPage({super.key}); @override State<UsersPage> createState()=>_UsersPageState(); }
