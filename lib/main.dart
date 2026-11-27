@@ -136,6 +136,12 @@ class _InventoryShellState extends State<InventoryShell> {
   final store=InventoryStore();
   int page=0;
   @override void initState(){super.initState();store.load();}
+  void _logout(){
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder:(_)=>const LoginGate()),
+      (route)=>false,
+    );
+  }
   @override Widget build(BuildContext context) {
     final wide=MediaQuery.sizeOf(context).width>800;
     final pages=[DashboardPage(store:store,onInventory:()=>setState(()=>page=1)),
@@ -144,7 +150,7 @@ class _InventoryShellState extends State<InventoryShell> {
     return Scaffold(body:Row(children:[
       if(wide) _Sidebar(page:page,onSelect:(v)=>setState(()=>page=v),isAdmin:widget.isAdmin),
       Expanded(child:Column(children:[
-        _Topbar(online:store.online,onMenu:wide?null:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Use the bottom navigation to switch pages.')))),
+        _Topbar(online:store.online,username:widget.username,onLogout:_logout,onMenu:wide?null:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Use the bottom navigation to switch pages.')))),
         Expanded(child:pages[page]),
         if(!wide) NavigationBar(selectedIndex:page,onDestinationSelected:(v)=>setState(()=>page=v),
           destinations:[
@@ -184,14 +190,15 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _Topbar extends StatelessWidget {
- final bool online; final VoidCallback? onMenu;
- const _Topbar({required this.online,this.onMenu});
+ final bool online; final String username; final VoidCallback onLogout; final VoidCallback? onMenu;
+ const _Topbar({required this.online,required this.username,required this.onLogout,this.onMenu});
  @override Widget build(BuildContext context)=>Container(height:68,color:Colors.white,padding:const EdgeInsets.symmetric(horizontal:24),child:Row(children:[
   if(onMenu!=null) IconButton(onPressed:onMenu,icon:const Icon(Icons.menu)),
   const CompanyLogo(height:30,showWordmark:false),const SizedBox(width:8),const Text('Headset Inventory',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold,color:navy)),
   const Spacer(),Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:8),decoration:BoxDecoration(color:online?const Color(0xFFE4F8F1):const Color(0xFFFFF4DF),borderRadius:BorderRadius.circular(20)),
     child:Row(children:[Icon(online?Icons.cloud_done:Icons.cloud_off,color:online?Colors.green:Colors.orange,size:17),const SizedBox(width:6),Text(online?'Cloud Connected':'Demo Mode',style:TextStyle(color:online?Colors.green.shade800:Colors.orange.shade900,fontSize:12,fontWeight:FontWeight.bold))])),
-  const SizedBox(width:16),const CircleAvatar(backgroundColor:Color(0xFFEAF1FC),child:Icon(Icons.person,color:navy)),const SizedBox(width:8),const Text('Admin',style:TextStyle(fontWeight:FontWeight.w600))
+  const SizedBox(width:16),const CircleAvatar(backgroundColor:Color(0xFFEAF1FC),child:Icon(Icons.person,color:navy)),const SizedBox(width:8),Text(username,style:const TextStyle(fontWeight:FontWeight.w600)),
+  IconButton(tooltip:'Log out',onPressed:onLogout,icon:const Icon(Icons.logout,color:navy))
  ]));
 }
 
@@ -262,11 +269,28 @@ class _InventoryPageState extends State<InventoryPage>{
    const SizedBox(height:18),Row(children:[Expanded(child:TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Search asset tag, brand, model...',filled:true,fillColor:Colors.white,border:OutlineInputBorder(borderSide:BorderSide.none,borderRadius:BorderRadius.all(Radius.circular(12)))),onChanged:(v)=>setState(()=>query=v))),const SizedBox(width:12),DropdownButton<String>(value:filter,items:['All','Available','Issued','Defective'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>filter=v!))]),
    const SizedBox(height:14),Expanded(child:Card(child:rows.isEmpty?const Center(child:Text('No headset records found.')):SingleChildScrollView(scrollDirection:Axis.horizontal,child:SingleChildScrollView(child:DataTable(columns:[
     const DataColumn(label:Text('BRAND')),const DataColumn(label:Text('SERIAL')),const DataColumn(label:Text('AGENT NAME')),const DataColumn(label:Text('STATUS')),const DataColumn(label:Text('DATE')),const DataColumn(label:Text('REMARKS')),
+    if(!widget.readOnly) const DataColumn(label:Text('REMOVE')),
    ],rows:rows.map((h)=>DataRow(cells:[
     DataCell(Text(h.brand)),DataCell(Text(h.serial.isEmpty?'—':h.serial)),DataCell(Text(h.assignedTo.isEmpty?'—':h.assignedTo)),DataCell(_StatusChip(h.status)),DataCell(Text(DateFormat.yMd().format(h.createdAt))),DataCell(Text(h.notes.isEmpty?'—':h.notes)),
+    if(!widget.readOnly) DataCell(TextButton(onPressed:()=>_remove(context,h),style:TextButton.styleFrom(foregroundColor:Colors.red),child:const Text('Remove'))),
    ])).toList())))))
   ]));
  });
+ Future<void> _remove(BuildContext context,Headset headset) async {
+  if(widget.readOnly)return;
+  final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+   title:const Text('Remove headset?'),
+   content:Text('Remove ${headset.tag} from inventory?'),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
+    FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Remove')),
+   ],
+  ));
+  if(confirmed!=true||!context.mounted)return;
+  try{await widget.store.delete(headset);}catch(e){
+   if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Remove failed: $e')));
+  }
+ }
  Future<void> _edit(BuildContext context,[Headset? h]) async{
   final tag=TextEditingController(text:h?.tag??'HS-${(widget.store.items.length+1).toString().padLeft(4,'0')}'),brand=TextEditingController(text:h?.brand??''),model=TextEditingController(text:h?.model??''),serial=TextEditingController(text:h?.serial??''),person=TextEditingController(text:h?.assignedTo??''),dept=TextEditingController(text:h?.department??''),notes=TextEditingController(text:h?.notes??'');
   String status=h?.status??'Available';
