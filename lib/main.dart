@@ -503,10 +503,10 @@ class _InventoryPageState extends State<InventoryPage>{
     final model=TextEditingController();
     final serial=TextEditingController();
     final assignedTo=TextEditingController();
-    final department=TextEditingController();
     final notes=TextEditingController();
     final date=TextEditingController(text:DateFormat('MM/dd/yyyy').format(DateTime.now()));
     var status='Available';
+    var department='ONLINE';
     var createdAt=DateTime.now();
     final shouldSave=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialogState)=>Dialog(
       child:SizedBox(width:420,child:SingleChildScrollView(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[
@@ -543,7 +543,15 @@ class _InventoryPageState extends State<InventoryPage>{
         ]),
         const SizedBox(height:13),
         _addFormField('Assigned To',assignedTo,'Employee Name'),
-        _addFormField('Department',department,'e.g. IT Support, Sales'),
+        Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Department',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:navy)),
+          const SizedBox(height:6),
+          DropdownButtonFormField<String>(
+            value:department,decoration:_cellDecoration(),isExpanded:true,
+            items:['ONLINE','BOOTH SGM','UNO DIGITAL BANK'].map((value)=>DropdownMenuItem(value:value,child:Text(value))).toList(),
+            onChanged:(value){if(value!=null)setDialogState(()=>department=value);},
+          ),
+        ]),
         _addFormField('Remarks / Notes',notes,'e.g. USB Headset, Wireless'),
         Row(mainAxisAlignment:MainAxisAlignment.end,children:[
           TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('Cancel')),
@@ -553,29 +561,29 @@ class _InventoryPageState extends State<InventoryPage>{
       ]))),
     )));
     if(shouldSave!=true||!mounted){
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();notes.dispose();date.dispose();
       return;
     }
     final enteredDate=DateFormat('MM/dd/yyyy').tryParseStrict(date.text.trim());
     if(enteredDate==null){
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter a valid date in MM/DD/YYYY format.')));
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();notes.dispose();date.dispose();
       return;
     }
     createdAt=enteredDate;
     if(tag.text.trim().isEmpty||brand.text.trim().isEmpty||model.text.trim().isEmpty){
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset Tag, Brand, and Model are required.')));
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();notes.dispose();date.dispose();
       return;
     }
     if(widget.store.items.any((headset)=>headset.tag.toLowerCase()==tag.text.trim().toLowerCase())){
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Asset tag already exists.')));
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();notes.dispose();date.dispose();
       return;
     }
     final headset=Headset(
       id:DateTime.now().microsecondsSinceEpoch.toString(),tag:tag.text.trim(),brand:brand.text.trim(),model:model.text.trim(),
-      serial:serial.text.trim(),status:status,assignedTo:assignedTo.text.trim(),department:department.text.trim(),
+      serial:serial.text.trim(),status:status,assignedTo:assignedTo.text.trim(),department:department,
       notes:notes.text.trim(),createdAt:createdAt,
     );
     try{
@@ -583,7 +591,7 @@ class _InventoryPageState extends State<InventoryPage>{
     }catch(e){
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Add failed: $e')));
     }finally{
-      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();department.dispose();notes.dispose();date.dispose();
+      tag.dispose();brand.dispose();model.dispose();serial.dispose();assignedTo.dispose();notes.dispose();date.dispose();
     }
   }
 
